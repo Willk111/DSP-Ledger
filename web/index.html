@@ -1,0 +1,1129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dyson Sphere Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky HUD bar with tabs; galaxy = systems of planet cards; planet = lines + balance side by side, imports/exports below. Dark-only, like the game. */
+:root {
+  --void: #070d18;
+  --hull: #0d1726;
+  --hull-2: #132136;
+  --rim: #22344d;
+  --ink: #d9e5f2;
+  --ink-dim: #8a9fba;
+  --holo: #52c4ea;
+  --holo-soft: rgba(82,196,234,.14);
+  --amber: #f0a83a;
+  --deficit: #ff6f5c;
+  --surplus: #62d39c;
+  --f-display: "Chakra Petch", "Rajdhani", "Segoe UI", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+[hidden] { display: none !important; }
+img { max-width: 100%; }
+body {
+  background: var(--void);
+  background-image: radial-gradient(1200px 500px at 70% -200px, rgba(82,196,234,.10), transparent 70%);
+  background-attachment: fixed;
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 15px;
+  line-height: 1.5;
+  min-height: 100%;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--hull); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--holo); outline-offset: 2px; }
+.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+
+/* ---------- HUD bar ---------- */
+.bar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: color-mix(in srgb, var(--hull) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--rim);
+}
+.bar-in {
+  max-width: 1240px; margin: 0 auto;
+  padding-block: 10px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px;
+}
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--f-display); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: 15px; }
+.brand svg { flex: none; }
+.tabs { display: flex; gap: 2px; }
+.tab {
+  background: none; border: 1px solid transparent; padding: 6px 14px;
+  font-family: var(--f-display); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; font-size: 13px;
+  color: var(--ink-dim);
+}
+.tab:hover { color: var(--ink); }
+.tab[aria-current="page"] { color: var(--holo); border-color: var(--rim); background: var(--holo-soft); }
+.bar-right { margin-left: auto; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-dim); cursor: pointer; user-select: none; }
+.toggle input { appearance: none; width: 34px; height: 18px; border-radius: 9px; background: var(--rim); position: relative; cursor: pointer; margin: 0; transition: background .15s; }
+.toggle input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--ink-dim); transition: transform .15s, background .15s; }
+.toggle input:checked { background: color-mix(in srgb, var(--amber) 45%, var(--rim)); }
+.toggle input:checked::after { transform: translateX(16px); background: var(--amber); }
+.sync { font-size: 12px; color: var(--ink-dim); display: flex; align-items: center; gap: 6px; font-family: var(--f-mono); }
+.sync i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-dim); }
+.sync.ok i { background: var(--surplus); box-shadow: 0 0 6px var(--surplus); }
+.sync.local i { background: var(--amber); }
+.sync.err i { background: var(--deficit); box-shadow: 0 0 6px var(--deficit); }
+.sync.err { color: var(--deficit); }
+.filectl { display: flex; gap: 6px; flex-wrap: wrap; }
+.filectl .btn { padding: 5px 10px; font-size: 12px; }
+.toast.ok { border-color: var(--holo); }
+
+/* ---------- page ---------- */
+main {
+  max-width: 1240px; margin: 0 auto;
+  padding-block: 24px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 28px;
+}
+h1, h2, h3 { font-family: var(--f-display); font-weight: 600; margin: 0; text-wrap: balance; letter-spacing: .02em; }
+h1 { font-size: 28px; line-height: 1.15; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .12em; color: var(--ink-dim); font-weight: 600; }
+.eyebrow { font-family: var(--f-display); font-size: 12px; text-transform: uppercase; letter-spacing: .14em; color: var(--holo); }
+.muted { color: var(--ink-dim); }
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.spread { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--rim); background: var(--hull-2); padding: 7px 14px;
+  font-family: var(--f-display); font-weight: 600; font-size: 13px; letter-spacing: .05em; text-transform: uppercase;
+}
+.btn:hover { border-color: var(--holo); color: var(--holo); }
+.btn.primary { background: var(--holo); color: #04121d; border-color: var(--holo); }
+.btn.primary:hover { background: color-mix(in srgb, var(--holo) 85%, white); color: #04121d; }
+.btn.danger { color: var(--deficit); }
+.btn.danger:hover { border-color: var(--deficit); color: var(--deficit); }
+.btn.danger[data-armed] { background: var(--deficit); color: #1a0703; border-color: var(--deficit); }
+.btn.ghost { background: none; }
+.btn:disabled { opacity: .5; cursor: default; }
+
+.panel {
+  background: var(--hull);
+  border: 1px solid var(--rim);
+  background-image: linear-gradient(225deg, var(--holo) 0 7px, transparent 7px);
+  padding: 18px;
+  min-width: 0;
+}
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+
+/* stats strip */
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--rim); background: var(--hull); }
+.stat { padding: 14px 18px; border-left: 1px solid var(--rim); display: flex; flex-direction: column; gap: 2px; }
+.stat:first-child { border-left: 0; }
+.stat b { font-family: var(--f-mono); font-size: 24px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 12px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: .08em; font-family: var(--f-display); }
+.stat.bad b { color: var(--deficit); }
+.stat.good b { color: var(--surplus); }
+@media (max-width: 640px) { .stats { grid-template-columns: repeat(2, minmax(0,1fr)); } .stat:nth-child(3) { border-left: 0; } .stat:nth-child(n+3) { border-top: 1px solid var(--rim); } }
+
+/* banner */
+.banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 14px; border: 1px dashed color-mix(in srgb, var(--amber) 60%, transparent); color: var(--amber); font-size: 14px; }
+
+/* systems + planet cards */
+.system { display: flex; flex-direction: column; gap: 12px; }
+.system-head { display: flex; align-items: baseline; gap: 12px; border-bottom: 1px solid var(--rim); padding-bottom: 8px; }
+.system-head h3 { font-size: 20px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px; }
+.pcard {
+  text-align: left; display: flex; flex-direction: column; gap: 12px;
+  background: var(--hull); border: 1px solid var(--rim);
+  background-image: linear-gradient(225deg, var(--holo) 0 7px, transparent 7px);
+  padding: 16px; min-width: 0; transition: border-color .15s, transform .15s;
+}
+.pcard:hover { border-color: var(--holo); }
+.pcard.has-short { box-shadow: inset 3px 0 0 var(--deficit); }
+.pc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.pc-name { font-family: var(--f-display); font-size: 18px; font-weight: 600; line-height: 1.2; }
+.ptype { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-family: var(--f-display); color: var(--ink-dim); border: 1px solid var(--rim); padding: 2px 7px; white-space: nowrap; }
+.pc-makes { display: flex; flex-direction: column; gap: 4px; }
+.mk { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; }
+.mk .num { color: var(--ink-dim); }
+.pc-flow { display: flex; gap: 14px; font-size: 12px; color: var(--ink-dim); font-family: var(--f-mono); border-top: 1px solid var(--rim); padding-top: 10px; flex-wrap: wrap; }
+.pc-short { font-size: 13px; color: var(--deficit); }
+.pc-empty { font-size: 13px; color: var(--ink-dim); font-style: italic; }
+.add-card { border-style: dashed; background-image: none; align-items: center; justify-content: center; color: var(--ink-dim); font-family: var(--f-display); text-transform: uppercase; letter-spacing: .08em; font-size: 13px; min-height: 120px; }
+
+/* item dot */
+.it { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.dot { width: 9px; height: 9px; flex: none; transform: rotate(45deg); background: var(--c, #6b7f99); box-shadow: 0 0 5px color-mix(in srgb, var(--c, #6b7f99) 60%, transparent); }
+
+/* planet view */
+.back { background: none; border: 0; padding: 0; color: var(--holo); font-family: var(--f-display); text-transform: uppercase; letter-spacing: .1em; font-size: 12px; }
+.phead { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
+.phead p { margin: 6px 0 0; max-width: 65ch; color: var(--ink-dim); }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 900px) { .grid2 { grid-template-columns: minmax(0,1fr); } }
+
+.lines { display: flex; flex-direction: column; }
+.lrow {
+  display: grid; grid-template-columns: 92px minmax(0,1fr) auto; gap: 12px; align-items: start;
+  text-align: left; background: none; border: 0; border-top: 1px solid var(--rim); padding: 12px 4px;
+}
+.lrow:first-child { border-top: 0; }
+.lrow:hover { background: var(--holo-soft); }
+.lmain { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.lmain .it { font-weight: 500; }
+.lmeta { font-size: 12px; color: var(--ink-dim); }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { font-size: 12px; padding: 1px 7px; border: 1px solid var(--rim); color: var(--ink-dim); display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.chip.short { border-color: var(--deficit); color: var(--deficit); }
+.lrate { text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; font-size: 16px; white-space: nowrap; }
+.lrate small, .unit { font-size: 11px; color: var(--ink-dim); }
+@media (max-width: 480px) { .lrow { grid-template-columns: minmax(0,1fr) auto; } .lrow .pill { grid-column: 1 / -1; justify-self: start; } }
+
+.pill { font-family: var(--f-display); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; padding: 2px 8px; border: 1px solid currentColor; text-align: center; white-space: nowrap; justify-self: start; }
+.st-running, .st-active { color: var(--surplus); }
+.st-building { color: var(--holo); }
+.st-planned { color: var(--amber); border-style: dashed; }
+.st-starved { color: var(--deficit); }
+.st-paused { color: var(--ink-dim); }
+
+.tbl-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th { text-align: left; font-family: var(--f-display); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-dim); padding: 6px 8px; border-bottom: 1px solid var(--rim); white-space: nowrap; }
+td { padding: 7px 8px; border-bottom: 1px solid color-mix(in srgb, var(--rim) 60%, transparent); vertical-align: top; }
+td.n, th.n { text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.z { color: color-mix(in srgb, var(--ink-dim) 55%, transparent); }
+.net-pos { color: var(--surplus); }
+.net-neg { color: var(--deficit); font-weight: 500; }
+.net-zero { color: var(--ink-dim); }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: var(--holo-soft); }
+tr.deficit td:first-child { box-shadow: inset 3px 0 0 var(--deficit); }
+
+.flows { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 18px; }
+@media (max-width: 760px) { .flows { grid-template-columns: minmax(0,1fr); } }
+.frow { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 12px; text-align: left; background: none; border: 0; border-top: 1px solid var(--rim); padding: 10px 4px; width: 100%; }
+.frow:first-child { border-top: 0; }
+.frow:hover { background: var(--holo-soft); }
+.frow .sub { grid-column: 1 / -1; font-size: 12px; color: var(--ink-dim); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.empty-note { color: var(--ink-dim); font-size: 14px; padding: 6px 0; }
+
+.filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.fchip { border: 1px solid var(--rim); background: none; padding: 4px 11px; font-size: 13px; color: var(--ink-dim); }
+.fchip[aria-pressed="true"] { border-color: var(--holo); color: var(--holo); background: var(--holo-soft); }
+.search { background: var(--hull-2); border: 1px solid var(--rim); padding: 7px 12px; width: min(320px, 100%); }
+.flag { font-size: 11px; color: var(--deficit); font-family: var(--f-display); text-transform: uppercase; letter-spacing: .08em; }
+.arrow { color: var(--holo); }
+
+/* empty state */
+.hero-empty { border: 1px solid var(--rim); background: var(--hull); padding: 40px 28px; display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
+.hero-empty p { margin: 0; max-width: 60ch; color: var(--ink-dim); }
+
+/* dialog */
+dialog { background: var(--hull); color: var(--ink); border: 1px solid var(--holo); padding: 0; width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); }
+dialog::backdrop { background: rgba(2,6,12,.72); }
+.dlg { display: flex; flex-direction: column; max-height: calc(100dvh - 34px); }
+.dlg-head { padding: 16px 20px; border-bottom: 1px solid var(--rim); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.dlg-head h3 { font-size: 18px; }
+.dlg-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
+.dlg-foot { padding: 14px 20px; border-top: 1px solid var(--rim); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.dlg-foot .grow { flex: 1; }
+.field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.field label, .lbl { font-family: var(--f-display); font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-dim); }
+.field input, .field select, .field textarea, .inrow input { background: var(--void); border: 1px solid var(--rim); padding: 8px 10px; width: 100%; min-width: 0; }
+.field input:focus, .field select:focus, .field textarea:focus, .inrow input:focus { border-color: var(--holo); outline: none; }
+.field textarea { resize: vertical; min-height: 60px; }
+.fgrid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+@media (max-width: 480px) { .fgrid { grid-template-columns: minmax(0,1fr); } }
+.inrows { display: flex; flex-direction: column; gap: 6px; }
+.inrow { display: grid; grid-template-columns: minmax(0,1fr) 96px 34px; gap: 6px; }
+.x { background: none; border: 1px solid var(--rim); color: var(--ink-dim); }
+.x:hover { color: var(--deficit); border-color: var(--deficit); }
+.hint { font-size: 12px; color: var(--ink-dim); margin: 0; }
+.ferr { color: var(--deficit); font-size: 13px; margin: 0; }
+
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--hull-2); border: 1px solid var(--deficit); color: var(--ink); padding: 10px 16px; font-size: 14px; z-index: 20; max-width: calc(100vw - 32px); }
+
+/* map */
+.map-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
+@media (max-width: 960px) { .map-layout { grid-template-columns: minmax(0, 1fr); } }
+.map-panel { background: var(--hull); border: 1px solid var(--rim); min-width: 0; }
+.map-info { padding: 10px 14px; border-bottom: 1px solid var(--rim); font-size: 13px; color: var(--ink-dim); min-height: 44px; display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; }
+.map-info .it { color: var(--ink); font-weight: 500; }
+.map-scroll { overflow-x: auto; }
+.map-scroll svg { display: block; width: 100%; min-width: 600px; height: auto; }
+.map-bg { fill: transparent; }
+.orbit { fill: none; stroke: var(--rim); stroke-dasharray: 2 5; }
+.syslabel { fill: var(--ink-dim); font-family: var(--f-display); font-size: 12px; letter-spacing: .16em; text-transform: uppercase; text-anchor: middle; }
+.edge { cursor: pointer; outline: none; }
+.edge .hit { fill: none; stroke: transparent; stroke-width: 16; }
+.edge .base { fill: none; stroke-linecap: round; opacity: .8; }
+.edge.planned .base { stroke-dasharray: 7 6; opacity: .55; }
+.edge.paused { color: var(--ink-dim) !important; }
+.edge.paused .base { opacity: .35; stroke-dasharray: 2 5; }
+.edge .flow { fill: none; stroke: #ffffff; stroke-opacity: .75; stroke-linecap: round; stroke-dasharray: 1.5 14; animation: flow 1.1s linear infinite; pointer-events: none; }
+@keyframes flow { to { stroke-dashoffset: -15.5; } }
+.edge:hover .base, .edge:focus-visible .base { opacity: 1; filter: drop-shadow(0 0 4px currentColor); }
+.edge .elabel, .pnode text { font-size: 12px; paint-order: stroke; stroke: var(--hull); stroke-width: 4px; stroke-linejoin: round; }
+.edge .elabel { fill: var(--ink); font-family: var(--f-mono); text-anchor: middle; dominant-baseline: middle; }
+.dim { opacity: .1; }
+.dimp { opacity: .35; }
+.pnode { cursor: pointer; outline: none; }
+.pnode text { fill: var(--ink); font-family: var(--f-display); font-weight: 600; text-anchor: middle; }
+.pnode .halo { fill: none; stroke: transparent; stroke-width: 1.5; }
+.pnode:hover .halo, .pnode:focus-visible .halo { stroke: var(--ink-dim); }
+.pnode.sel .halo { stroke: var(--holo); stroke-width: 2; }
+.pnode .ring { fill: none; stroke: var(--deficit); stroke-width: 2; stroke-dasharray: 4 3; }
+.side { display: flex; flex-direction: column; gap: 16px; }
+.side h3 { font-size: 20px; }
+.legend { display: flex; flex-direction: column; gap: 10px; font-size: 13px; color: var(--ink-dim); }
+.legend div { display: flex; align-items: center; gap: 10px; }
+.legend svg { flex: none; }
+.map-select { background: var(--hull-2); border: 1px solid var(--rim); padding: 7px 10px; }
+@media (prefers-reduced-motion: reduce) { .edge .flow { animation: none; } }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+
+<header class="bar">
+  <div class="bar-in">
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="4" fill="#f0a83a"/><ellipse cx="11" cy="11" rx="10" ry="4" fill="none" stroke="#52c4ea" stroke-width="1.2" transform="rotate(-25 11 11)"/><ellipse cx="11" cy="11" rx="10" ry="4" fill="none" stroke="#52c4ea" stroke-width="1.2" opacity=".5" transform="rotate(35 11 11)"/></svg>
+      Dyson Sphere Ledger
+    </div>
+    <nav class="tabs" aria-label="Views">
+      <button class="tab" data-act="tab" data-view="galaxy">Galaxy</button>
+      <button class="tab" data-act="tab" data-view="map">Map</button>
+      <button class="tab" data-act="tab" data-view="routes">Routes</button>
+      <button class="tab" data-act="tab" data-view="items">Items</button>
+    </nav>
+    <div class="bar-right">
+      <label class="toggle" for="tg-planned"><input type="checkbox" id="tg-planned"> Count planned</label>
+      <span class="sync" id="sync"><i></i><span>Connecting…</span></span>
+      <span class="filectl" id="filectl" hidden>
+        <button class="btn ghost" data-act="export" title="Download a backup copy of your data">Export</button>
+        <label class="btn ghost" for="import-file" title="Merge planets, lines and routes from a backup file">Import</label>
+        <input type="file" id="import-file" accept=".json,application/json" hidden>
+        <button class="btn ghost danger" data-act="quit" title="Stop the DSP Ledger app">Quit</button>
+      </span>
+    </div>
+  </div>
+</header>
+
+<main id="main"><p class="muted">Loading your factory…</p></main>
+
+<dialog id="dlg"></dialog>
+
+<datalist id="itemlist"></datalist>
+<datalist id="buildinglist"></datalist>
+<datalist id="systemlist"></datalist>
+<datalist id="typelist"></datalist>
+
+<script>
+(() => {
+/* ---------------- catalog ---------------- */
+const CATS = {
+  ore: '#b9825a', fluid: '#58a9da', ingot: '#a5b2c0', comp: '#cdb47a', adv: '#7fd0c4',
+  rare: '#c78ae0', fuel: '#e9824f', logi: '#8fb6ff', dyson: '#f2d36c'
+};
+const MATRIX = {
+  'Electromagnetic Matrix': '#3f8cff', 'Energy Matrix': '#ff5148', 'Structure Matrix': '#ffd23f',
+  'Information Matrix': '#b45cff', 'Gravity Matrix': '#3fd67a', 'Universe Matrix': '#f1f1f1'
+};
+const ITEMS = {
+  ore: ['Iron Ore','Copper Ore','Stone','Coal','Silicon Ore','Titanium Ore','Kimberlite Ore','Fractal Silicon','Organic Crystal','Optical Grating Crystal','Spiniform Stalagmite Crystal','Unipolar Magnet','Fire Ice','Log','Plant Fuel'],
+  fluid: ['Water','Crude Oil','Refined Oil','Hydrogen','Deuterium','Sulfuric Acid','Antimatter'],
+  ingot: ['Iron Ingot','Copper Ingot','Stone Brick','Energetic Graphite','High-Purity Silicon','Titanium Ingot','Magnet','Steel','Glass','Titanium Alloy','Diamond','Crystal Silicon','Plastic','Graphene','Carbon Nanotube','Titanium Glass','Titanium Crystal'],
+  comp: ['Gear','Magnetic Coil','Circuit Board','Prism','Electric Motor','Microcrystalline Component','Electromagnetic Turbine','Particle Container','Strange Matter','Processor','Casimir Crystal','Photon Combiner','Plane Filter','Quantum Chip','Super-Magnetic Ring','Particle Broadband','Graviton Lens','Proliferator Mk.I','Proliferator Mk.II','Proliferator Mk.III','Critical Photon','Accumulator','Full Accumulator'],
+  fuel: ['Hydrogen Fuel Rod','Deuteron Fuel Rod','Antimatter Fuel Rod'],
+  logi: ['Logistics Drone','Logistics Vessel','Space Warper','Thruster','Reinforced Thruster','Logistics Bot'],
+  dyson: ['Frame Material','Dyson Sphere Component','Solar Sail','Small Carrier Rocket'],
+};
+const ITEM_CAT = {};
+for (const [c, arr] of Object.entries(ITEMS)) arr.forEach(n => ITEM_CAT[n] = c);
+Object.keys(MATRIX).forEach(n => ITEM_CAT[n] = 'matrix');
+const ALL_ITEMS = Object.keys(ITEM_CAT).sort();
+const CANON = Object.fromEntries(ALL_ITEMS.map(n => [n.toLowerCase(), n]));
+const canon = s => { s = String(s || '').trim().replace(/\s+/g, ' '); return CANON[s.toLowerCase()] || s; };
+const itemColor = n => MATRIX[n] || CATS[ITEM_CAT[n]] || '#6b7f99';
+
+const BUILDINGS = ['Mining Machine','Advanced Mining Machine','Water Pump','Oil Extractor','Orbital Collector','Arc Smelter','Plane Smelter','Negentropy Smelter','Assembling Machine Mk.I','Assembling Machine Mk.II','Assembling Machine Mk.III','Re-composing Assembler','Oil Refinery','Chemical Plant','Quantum Chemical Plant','Fractionator','Miniature Particle Collider','Matrix Lab','Self-evolution Lab','Ray Receiver','Energy Exchanger','EM-Rail Ejector','Vertical Launching Silo'];
+const PTYPES = ['Mediterranean','Ocean World','Oceanic Jungle','Prairie','Savanna','Red Stone','Gobi','Arid Desert','Barren Desert','Lava','Volcanic Ash','Ice Field','Frozen Tundra','Crystal Desert','Rocky Salt Lake','Hurricane Stone Forest','Sakura Ocean','Pandora Swamp','Scarlet Ice Lake','Gas Giant','Ice Giant'];
+const LINE_STATUS = ['running','building','starved','paused','planned'];
+const ROUTE_STATUS = ['active','planned','paused'];
+const TRANSPORT = ['ILS','ILS + warpers','PLS','Belt','Manual'];
+
+/* ---------------- example factory (loaded on request only) ---------------- */
+const EXAMPLE = {
+  planets: [
+    { id:'p_ex_home', name:'Vela Ito II', system:'Vela Ito', type:'Mediterranean', notes:'Starting planet. Main mall and research.' },
+    { id:'p_ex_lava', name:'Vela Ito I', system:'Vela Ito', type:'Lava', notes:'Iron and copper smelting outpost.' },
+    { id:'p_ex_gas',  name:'Vela Ito IV', system:'Vela Ito', type:'Gas Giant', notes:'Orbital collectors on the equator.' },
+    { id:'p_ex_ice',  name:'Cetus Rho III', system:'Cetus Rho', type:'Ice Field', notes:'Fire ice for graphene later.' },
+  ],
+  lines: [
+    { id:'l_ex_01', planetId:'p_ex_home', item:'Iron Ingot', rate:240, building:'Arc Smelter', count:4, status:'running', inputs:[{item:'Iron Ore',rate:240}], notes:'' },
+    { id:'l_ex_02', planetId:'p_ex_home', item:'Circuit Board', rate:120, building:'Assembling Machine Mk.II', count:1, status:'running', inputs:[{item:'Iron Ingot',rate:120},{item:'Copper Ingot',rate:60}], notes:'' },
+    { id:'l_ex_03', planetId:'p_ex_home', item:'Magnetic Coil', rate:120, building:'Assembling Machine Mk.II', count:1, status:'running', inputs:[{item:'Magnet',rate:120},{item:'Copper Ingot',rate:60}], notes:'' },
+    { id:'l_ex_04', planetId:'p_ex_home', item:'Electromagnetic Matrix', rate:60, building:'Matrix Lab', count:3, status:'running', inputs:[{item:'Magnetic Coil',rate:60},{item:'Circuit Board',rate:60}], notes:'Blue science stack' },
+    { id:'l_ex_05', planetId:'p_ex_home', item:'Energy Matrix', rate:30, building:'Matrix Lab', count:3, status:'planned', inputs:[{item:'Energetic Graphite',rate:60},{item:'Hydrogen',rate:60}], notes:'Needs a graphite source' },
+    { id:'l_ex_06', planetId:'p_ex_lava', item:'Iron Ore', rate:360, building:'Mining Machine', count:null, status:'running', inputs:[], notes:'' },
+    { id:'l_ex_07', planetId:'p_ex_lava', item:'Copper Ore', rate:180, building:'Mining Machine', count:null, status:'running', inputs:[], notes:'' },
+    { id:'l_ex_08', planetId:'p_ex_lava', item:'Magnet', rate:120, building:'Arc Smelter', count:3, status:'running', inputs:[{item:'Iron Ore',rate:120}], notes:'' },
+    { id:'l_ex_09', planetId:'p_ex_lava', item:'Copper Ingot', rate:120, building:'Arc Smelter', count:2, status:'running', inputs:[{item:'Copper Ore',rate:120}], notes:'' },
+    { id:'l_ex_10', planetId:'p_ex_gas', item:'Hydrogen', rate:90, building:'Orbital Collector', count:null, status:'building', inputs:[], notes:'' },
+    { id:'l_ex_11', planetId:'p_ex_ice', item:'Fire Ice', rate:60, building:'Mining Machine', count:null, status:'planned', inputs:[], notes:'' },
+  ],
+  routes: [
+    { id:'r_ex_1', item:'Iron Ore', fromPlanetId:'p_ex_lava', toPlanetId:'p_ex_home', rate:240, transport:'ILS', distance:null, status:'active', notes:'' },
+    { id:'r_ex_2', item:'Magnet', fromPlanetId:'p_ex_lava', toPlanetId:'p_ex_home', rate:120, transport:'ILS', distance:null, status:'active', notes:'' },
+    { id:'r_ex_3', item:'Copper Ingot', fromPlanetId:'p_ex_lava', toPlanetId:'p_ex_home', rate:90, transport:'ILS', distance:null, status:'active', notes:'Vessels capped, add more' },
+    { id:'r_ex_4', item:'Hydrogen', fromPlanetId:'p_ex_gas', toPlanetId:'p_ex_home', rate:60, transport:'ILS', distance:null, status:'planned', notes:'' },
+    { id:'r_ex_5', item:'Fire Ice', fromPlanetId:'p_ex_ice', toPlanetId:'p_ex_home', rate:60, transport:'ILS + warpers', distance:4.2, status:'planned', notes:'' },
+  ]
+};
+
+/* ---------------- state ---------------- */
+const S = { planets: [], lines: [], routes: [], mode: 'loading', loaded: {}, view: 'galaxy', planetId: null, showPlanned: false, routeFilter: 'all', itemQuery: '', mapPlanet: null, mapItem: '' };
+const LSKEY = 'dsp-ledger-v1', PREFKEY = 'dsp-ledger-prefs';
+let DB = null;
+
+try { const p = JSON.parse(localStorage.getItem(PREFKEY) || '{}'); S.showPlanned = !!p.showPlanned; } catch {}
+const savePrefs = () => { try { localStorage.setItem(PREFKEY, JSON.stringify({ showPlanned: S.showPlanned })); } catch {} };
+
+/* ---------------- helpers ---------------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const n0 = v => { const x = parseFloat(v); return isFinite(x) ? x : 0; };
+const fmt = v => (Math.round(n0(v) * 10) / 10).toLocaleString('en-GB', { maximumFractionDigits: 1 });
+const sfmt = v => (v > 0 ? '+' : v < 0 ? '−' : '') + fmt(Math.abs(v));
+const uid = p => p + '_' + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-3);
+const cap = s => s ? s[0].toUpperCase() + s.slice(1) : '';
+const EPS = 0.05;
+const itemTag = n => `<span class="it"><i class="dot" style="--c:${itemColor(n)}"></i>${esc(n)}</span>`;
+const planetById = id => S.planets.find(p => p.id === id);
+const pname = id => planetById(id)?.name || 'Unknown planet';
+const lineCounts = l => l.status !== 'paused' && (S.showPlanned || l.status !== 'planned');
+const routeCounts = r => r.status === 'active' || (S.showPlanned && r.status === 'planned');
+
+function toast(msg, ok) {
+  const t = document.createElement('div'); t.className = 'toast' + (ok ? ' ok' : ''); t.textContent = msg;
+  document.body.appendChild(t); setTimeout(() => t.remove(), 4200);
+}
+const errMsg = e => e?.code === 'quota_exceeded' ? 'Storage is full. Delete some lines or routes, then try again.'
+  : e?.code === 'invalid_argument' ? 'Could not save: you may only have view access to this ledger.'
+  : 'Could not save right now. Check your connection and try again.';
+
+/* ---------------- balances ---------------- */
+function planetBalance(pid) {
+  const m = new Map();
+  const g = k => { if (!m.has(k)) m.set(k, { made: 0, used: 0, inn: 0, out: 0 }); return m.get(k); };
+  for (const l of S.lines) {
+    if (l.planetId !== pid || !lineCounts(l)) continue;
+    g(l.item).made += n0(l.rate);
+    for (const i of l.inputs || []) if (i.item) g(i.item).used += n0(i.rate);
+  }
+  for (const r of S.routes) {
+    if (!routeCounts(r)) continue;
+    if (r.toPlanetId === pid) g(r.item).inn += n0(r.rate);
+    if (r.fromPlanetId === pid) g(r.item).out += n0(r.rate);
+  }
+  return [...m].map(([item, v]) => ({ item, ...v, net: v.made + v.inn - v.used - v.out }))
+    .sort((a, b) => ((b.net < -EPS) - (a.net < -EPS)) || a.item.localeCompare(b.item));
+}
+function allShortages() {
+  const out = [];
+  for (const p of S.planets) for (const b of planetBalance(p.id)) if (b.net < -EPS) out.push({ planet: p, ...b });
+  return out;
+}
+
+/* ---------------- storage ---------------- */
+/* Storage modes:
+   file  - running inside the DSP Ledger app: state lives in a JSON file on disk (api/state)
+   db    - running as a claude.ai artifact: shared database
+   local - plain browser fallback: localStorage */
+const snapshot = () => ({ version: 1, planets: S.planets, lines: S.lines, routes: S.routes });
+let saveChain = Promise.resolve(), saveQueued = false;
+function persist() {
+  if (S.mode === 'file') {
+    if (saveQueued) return saveChain;          // a pending save will pick up the latest state
+    saveQueued = true;
+    saveChain = saveChain.then(async () => {
+      saveQueued = false;
+      const r = await fetch('api/state', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(snapshot()) });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (S.saveError) { S.saveError = false; setSync(); }
+    }).catch(() => {
+      S.saveError = true; setSync();
+      toast('Could not save to the data file. Check the DSP Ledger window is still running.');
+    });
+    return saveChain;
+  }
+  try { localStorage.setItem(LSKEY, JSON.stringify(snapshot())); } catch {}
+}
+async function put(coll, obj) {
+  const { id, ...body } = obj;
+  if (S.mode === 'db') {
+    try { await DB.collection(coll).doc(id).set(JSON.parse(JSON.stringify(body))); }
+    catch (e) { if (e?.code === 'unavailable') { await new Promise(r => setTimeout(r, 400 + Math.random() * 600)); return DB.collection(coll).doc(id).set(JSON.parse(JSON.stringify(body))); } throw e; }
+  } else {
+    const arr = S[coll]; const i = arr.findIndex(x => x.id === id);
+    if (i >= 0) arr[i] = obj; else arr.push(obj);
+    persist(); render();
+  }
+}
+async function remove(coll, id) {
+  if (S.mode === 'db') await DB.collection(coll).doc(id).delete();
+  else { S[coll] = S[coll].filter(x => x.id !== id); persist(); render(); }
+}
+function setSync() {
+  const el = $('#sync');
+  const file = S.mode === 'file';
+  el.className = 'sync ' + (S.saveError ? 'err' : S.mode === 'db' || file ? 'ok' : S.mode === 'local' ? 'local' : '');
+  el.querySelector('span').textContent = S.saveError ? 'Not saved' : file ? 'Saved to file' : S.mode === 'db' ? 'Synced' : S.mode === 'local' ? 'Saved in this browser' : S.mode === 'stopped' ? 'Stopped' : 'Connecting…';
+  el.title = file && S.dataPath ? 'Data file: ' + S.dataPath : '';
+  $('#filectl').hidden = !file;
+}
+
+async function initFile() {
+  // Only the DSP Ledger app answers api/info; anywhere else this fails quietly.
+  let info = null;
+  try {
+    const r = await fetch('api/info', { cache: 'no-store' });
+    if (r.ok && (r.headers.get('content-type') || '').includes('json')) info = await r.json();
+  } catch {}
+  if (!info || info.app !== 'dsp-ledger') return false;
+  S.mode = 'file'; S.dataPath = info.dataPath || '';
+  try {
+    const r = await fetch('api/state', { cache: 'no-store' });
+    if (!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    S.planets = d.planets || []; S.lines = d.lines || []; S.routes = d.routes || [];
+    S.loaded = { planets: true, lines: true, routes: true };
+    render();
+  } catch (e) {
+    $('#main').innerHTML = `<section class="hero-empty"><span class="eyebrow">Data file problem</span><h1>Couldn't read your data</h1>
+      <p>${esc(String(e.message || e))}</p><p>File: <span class="num">${esc(S.dataPath)}</span></p>
+      <p>Your file hasn't been changed. Fix or replace it, then restart DSP Ledger.</p></section>`;
+    S.loaded = {};
+  }
+  setSync();
+  return true;
+}
+async function init() {
+  if (await initFile()) return;
+  let db = null;
+  try { db = window.claude?.use ? await window.claude.use('db') : null; } catch { db = null; }
+  if (db) {
+    DB = db; S.mode = 'db';
+    for (const c of ['planets', 'lines', 'routes']) {
+      db.collection(c).onSnapshot(snap => {
+        S[c] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        S.loaded[c] = true; render();
+      }, e => { if (e?.code !== 'revoked') toast('Lost connection to saved data. Reload the page to reconnect.'); });
+    }
+  } else {
+    S.mode = 'local';
+    try { const d = JSON.parse(localStorage.getItem(LSKEY) || 'null'); if (d) { S.planets = d.planets || []; S.lines = d.lines || []; S.routes = d.routes || []; } } catch {}
+    S.loaded = { planets: true, lines: true, routes: true };
+    render();
+  }
+  setSync();
+}
+
+/* ---------------- rendering ---------------- */
+function render() {
+  setSync();
+  lastHover = null;
+  document.querySelectorAll('.tab').forEach(t => {
+    const on = t.dataset.view === S.view || (S.view === 'planet' && t.dataset.view === 'galaxy');
+    if (on) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
+  });
+  $('#tg-planned').checked = S.showPlanned;
+  const main = $('#main');
+  if (S.mode === 'stopped') return;
+  if (!(S.loaded.planets && S.loaded.lines && S.loaded.routes)) { main.innerHTML = '<p class="muted">Loading your factory…</p>'; return; }
+  if (S.view === 'planet' && !planetById(S.planetId)) S.view = 'galaxy';
+  main.innerHTML = S.view === 'map' ? viewMap() : S.view === 'planet' ? viewPlanet() : S.view === 'routes' ? viewRoutes() : S.view === 'items' ? viewItems() : viewGalaxy();
+  if (S.view === 'items') fillItemsTable();
+  refreshDatalists();
+}
+
+function refreshDatalists() {
+  const used = new Set(ALL_ITEMS);
+  S.lines.forEach(l => { used.add(l.item); (l.inputs || []).forEach(i => used.add(i.item)); });
+  S.routes.forEach(r => used.add(r.item));
+  $('#itemlist').innerHTML = [...used].filter(Boolean).sort().map(n => `<option value="${esc(n)}">`).join('');
+  $('#buildinglist').innerHTML = BUILDINGS.map(n => `<option value="${esc(n)}">`).join('');
+  $('#systemlist').innerHTML = [...new Set(S.planets.map(p => p.system).filter(Boolean))].sort().map(n => `<option value="${esc(n)}">`).join('');
+  $('#typelist').innerHTML = PTYPES.map(n => `<option value="${esc(n)}">`).join('');
+}
+
+function exampleBanner() {
+  const has = [...S.planets, ...S.lines, ...S.routes].some(x => x.example);
+  if (!has) return '';
+  return `<div class="banner"><span>You're looking at an example factory. Clear it when you're ready to log your own save.</span>
+    <button class="btn ghost danger" data-act="clear-examples">Clear examples</button></div>`;
+}
+
+function viewGalaxy() {
+  if (!S.planets.length) {
+    return `<section class="hero-empty">
+      <span class="eyebrow">Empty ledger</span>
+      <h1>Start with your home planet</h1>
+      <p>Add each planet you've built on, then log its production lines with their per-minute output and inputs. Add a route for every item your ILS or belts move between planets, and the ledger works out what each planet is short of or has spare.</p>
+      <div class="row"><button class="btn primary" data-act="new-planet">Add planet</button>
+      <button class="btn" data-act="load-examples">Load example factory</button></div>
+    </section>`;
+  }
+  const shorts = allShortages();
+  const active = S.lines.filter(l => l.status === 'running').length;
+  const routesOn = S.routes.filter(r => r.status === 'active').length;
+  const systems = {};
+  S.planets.forEach(p => (systems[p.system || 'Unassigned system'] ||= []).push(p));
+  const sysNames = Object.keys(systems).sort();
+  return `${exampleBanner()}
+  <section class="stats" aria-label="Summary">
+    <div class="stat"><b>${S.planets.length}</b><span>Planets</span></div>
+    <div class="stat"><b>${active}</b><span>Lines running</span></div>
+    <div class="stat"><b>${routesOn}</b><span>Active routes</span></div>
+    <div class="stat ${shorts.length ? 'bad' : 'good'}"><b>${shorts.length}</b><span>Shortages${S.showPlanned ? ' incl. planned' : ''}</span></div>
+  </section>
+  ${sysNames.map(sn => `
+    <section class="system">
+      <div class="system-head"><h3>${esc(sn)}</h3><span class="muted">${systems[sn].length} planet${systems[sn].length === 1 ? '' : 's'}</span></div>
+      <div class="cards">
+        ${systems[sn].sort((a, b) => a.name.localeCompare(b.name)).map(planetCard).join('')}
+        <button class="pcard add-card" data-act="new-planet" data-system="${esc(sn === 'Unassigned system' ? '' : sn)}">+ Add planet in ${esc(sn)}</button>
+      </div>
+    </section>`).join('')}
+  <div><button class="btn" data-act="new-planet">+ Add planet in a new system</button></div>`;
+}
+
+function planetCard(p) {
+  const makes = {};
+  S.lines.filter(l => l.planetId === p.id && lineCounts(l)).forEach(l => makes[l.item] = (makes[l.item] || 0) + n0(l.rate));
+  const top = Object.entries(makes).sort((a, b) => b[1] - a[1]);
+  const lineCount = S.lines.filter(l => l.planetId === p.id).length;
+  const imp = S.routes.filter(r => r.toPlanetId === p.id && routeCounts(r)).length;
+  const exp = S.routes.filter(r => r.fromPlanetId === p.id && routeCounts(r)).length;
+  const shorts = planetBalance(p.id).filter(b => b.net < -EPS);
+  return `<button class="pcard${shorts.length ? ' has-short' : ''}" data-act="open-planet" data-id="${esc(p.id)}">
+    <span class="pc-head"><span class="pc-name">${esc(p.name)}</span>${p.type ? `<span class="ptype">${esc(p.type)}</span>` : ''}</span>
+    ${top.length ? `<span class="pc-makes">${top.slice(0, 4).map(([it, r]) => `<span class="mk">${itemTag(it)}<span class="num">${fmt(r)}/min</span></span>`).join('')}
+      ${top.length > 4 ? `<span class="muted" style="font-size:12px">+${top.length - 4} more</span>` : ''}</span>`
+      : `<span class="pc-empty">No production logged yet</span>`}
+    ${shorts.length ? `<span class="pc-short">Short: ${shorts.slice(0, 3).map(s => `${esc(s.item)} ${sfmt(s.net)}`).join(', ')}${shorts.length > 3 ? '…' : ''}</span>` : ''}
+    <span class="pc-flow"><span>${lineCount} line${lineCount === 1 ? '' : 's'}</span><span>↓ ${imp} import${imp === 1 ? '' : 's'}</span><span>↑ ${exp} export${exp === 1 ? '' : 's'}</span></span>
+  </button>`;
+}
+
+const ORDER = { starved: 0, running: 1, building: 2, paused: 3, planned: 4 };
+function viewPlanet() {
+  const p = planetById(S.planetId);
+  const bal = planetBalance(p.id);
+  const netOf = Object.fromEntries(bal.map(b => [b.item, b.net]));
+  const lines = S.lines.filter(l => l.planetId === p.id).sort((a, b) => (ORDER[a.status] ?? 9) - (ORDER[b.status] ?? 9) || a.item.localeCompare(b.item));
+  const imports = S.routes.filter(r => r.toPlanetId === p.id).sort((a, b) => a.item.localeCompare(b.item));
+  const exports = S.routes.filter(r => r.fromPlanetId === p.id).sort((a, b) => a.item.localeCompare(b.item));
+  const flowRow = (r, dir) => `<button class="frow" data-act="edit-route" data-id="${esc(r.id)}">
+      ${itemTag(r.item)}<span class="lrate">${fmt(r.rate)}<small>/min</small></span>
+      <span class="sub"><span>${dir === 'in' ? 'from' : 'to'} ${esc(pname(dir === 'in' ? r.fromPlanetId : r.toPlanetId))}</span><span>· ${esc(r.transport || '')}</span>${r.distance ? `<span class="num">· ${fmt(r.distance)} ly</span>` : ''}${r.status !== 'active' ? `<span class="pill st-${esc(r.status)}">${esc(cap(r.status))}</span>` : ''}</span>
+    </button>`;
+  return `${exampleBanner()}
+  <div><button class="back" data-act="tab" data-view="galaxy">← Galaxy</button></div>
+  <section class="phead">
+    <div><span class="eyebrow">${esc(p.system || 'Unassigned system')}${p.type ? ' · ' + esc(p.type) : ''}</span>
+      <h1>${esc(p.name)}</h1>${p.notes ? `<p>${esc(p.notes)}</p>` : ''}</div>
+    <div class="row"><button class="btn" data-act="edit-planet" data-id="${esc(p.id)}">Edit planet</button>
+      <button class="btn primary" data-act="new-line" data-planet="${esc(p.id)}">+ Production line</button></div>
+  </section>
+  <div class="grid2">
+    <section class="panel">
+      <div class="panel-head"><h2>Production lines</h2><span class="muted" style="font-size:13px">${lines.length} total</span></div>
+      ${lines.length ? `<div class="lines">${lines.map(l => `
+        <button class="lrow" data-act="edit-line" data-id="${esc(l.id)}">
+          <span class="pill st-${esc(l.status)}">${esc(cap(l.status))}</span>
+          <span class="lmain">${itemTag(l.item)}
+            ${(l.building || l.notes) ? `<span class="lmeta">${esc(l.building || '')}${l.count ? ' ×' + esc(l.count) : ''}${l.building && l.notes ? ' · ' : ''}${esc(l.notes || '')}</span>` : ''}
+            ${(l.inputs || []).length ? `<span class="chips">${l.inputs.map(i => {
+              const short = lineCounts(l) && (netOf[i.item] ?? 0) < -EPS;
+              return `<span class="chip${short ? ' short' : ''}" title="${short ? esc(i.item) + ' is short on this planet' : ''}"><i class="dot" style="--c:${itemColor(i.item)}"></i>${esc(i.item)} <span class="num">${fmt(i.rate)}</span>${short ? ' · short' : ''}</span>`;
+            }).join('')}</span>` : ''}
+          </span>
+          <span class="lrate">${fmt(l.rate)}<small>/min</small></span>
+        </button>`).join('')}</div>`
+        : `<p class="empty-note">No lines yet. Add what this planet mines, smelts or assembles.</p>`}
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>Item balance</h2><span class="muted" style="font-size:12px">per minute</span></div>
+      ${bal.length ? `<div class="tbl-wrap"><table>
+        <thead><tr><th>Item</th><th class="n">Made</th><th class="n">Used</th><th class="n">In</th><th class="n">Out</th><th class="n">Net</th></tr></thead>
+        <tbody>${bal.map(b => `<tr class="${b.net < -EPS ? 'deficit' : ''}">
+          <td>${itemTag(b.item)}</td>
+          ${['made', 'used', 'inn', 'out'].map(k => `<td class="n${b[k] ? '' : ' z'}">${b[k] ? fmt(b[k]) : '·'}</td>`).join('')}
+          <td class="n ${b.net < -EPS ? 'net-neg' : b.net > EPS ? 'net-pos' : 'net-zero'}">${sfmt(b.net)}</td></tr>`).join('')}</tbody>
+      </table></div>
+      <p class="hint" style="margin-top:10px">Net = made + imported − used − exported.${S.showPlanned ? ' Planned lines and routes are counted.' : ' Turn on “Count planned” to see what planned builds will need.'}</p>`
+      : `<p class="empty-note">Nothing flowing yet.</p>`}
+    </section>
+  </div>
+  <div class="flows">
+    <section class="panel">
+      <div class="panel-head"><h2>Imports</h2><button class="btn" data-act="new-route" data-to="${esc(p.id)}">+ Import</button></div>
+      ${imports.length ? imports.map(r => flowRow(r, 'in')).join('') : `<p class="empty-note">Nothing shipped in.</p>`}
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>Exports</h2><button class="btn" data-act="new-route" data-from="${esc(p.id)}">+ Export</button></div>
+      ${exports.length ? exports.map(r => flowRow(r, 'out')).join('') : `<p class="empty-note">Nothing shipped out.</p>`}
+    </section>
+  </div>`;
+}
+
+function viewRoutes() {
+  const filters = [['all', 'All'], ...TRANSPORT.map(t => [t, t]), ['planned', 'Planned'], ['paused', 'Paused']];
+  let rs = S.routes.slice();
+  if (S.routeFilter === 'planned' || S.routeFilter === 'paused') rs = rs.filter(r => r.status === S.routeFilter);
+  else if (S.routeFilter !== 'all') rs = rs.filter(r => r.transport === S.routeFilter);
+  rs.sort((a, b) => a.item.localeCompare(b.item) || pname(a.fromPlanetId).localeCompare(pname(b.fromPlanetId)));
+  const balCache = {};
+  const netAt = (pid, item) => { balCache[pid] ||= Object.fromEntries(planetBalance(pid).map(b => [b.item, b.net])); return balCache[pid][item] ?? 0; };
+  const total = rs.filter(routeCounts).reduce((s, r) => s + n0(r.rate), 0);
+  return `${exampleBanner()}
+  <section class="spread">
+    <div><span class="eyebrow">Logistics</span><h1>Routes</h1></div>
+    <button class="btn primary" data-act="new-route" ${S.planets.length < 2 ? 'disabled title="Add at least two planets first"' : ''}>+ Route</button>
+  </section>
+  <div class="filters" role="group" aria-label="Filter routes">${filters.map(([k, l]) => `<button class="fchip" data-act="route-filter" data-f="${esc(k)}" aria-pressed="${S.routeFilter === k}">${esc(l)}</button>`).join('')}</div>
+  <section class="panel">
+    ${rs.length ? `<div class="tbl-wrap"><table>
+      <thead><tr><th>Item</th><th>From</th><th></th><th>To</th><th class="n">Rate /min</th><th>Transport</th><th class="n">Dist.</th><th>Status</th></tr></thead>
+      <tbody>${rs.map(r => {
+        const srcShort = routeCounts(r) && netAt(r.fromPlanetId, r.item) < -EPS;
+        return `<tr class="clickable" data-act="edit-route" data-id="${esc(r.id)}" tabindex="0">
+          <td>${itemTag(r.item)}${srcShort ? `<div class="flag">Source short</div>` : ''}</td>
+          <td>${esc(pname(r.fromPlanetId))}</td><td class="arrow">→</td><td>${esc(pname(r.toPlanetId))}</td>
+          <td class="n">${fmt(r.rate)}</td><td>${esc(r.transport || '')}</td>
+          <td class="n${r.distance ? '' : ' z'}">${r.distance ? fmt(r.distance) + ' ly' : '·'}</td>
+          <td><span class="pill st-${esc(r.status)}">${esc(cap(r.status))}</span></td></tr>`;
+      }).join('')}</tbody></table></div>
+      <p class="hint" style="margin-top:10px">${fmt(total)} items/min moving across the routes shown${S.showPlanned ? ', including planned ones' : ''}.</p>`
+      : `<p class="empty-note">${S.routes.length ? 'No routes match this filter.' : 'No routes yet. Open a planet and add its imports and exports, or add one here.'}</p>`}
+  </section>`;
+}
+
+function viewItems() {
+  return `${exampleBanner()}
+  <section class="spread">
+    <div><span class="eyebrow">Galaxy-wide</span><h1>Items</h1></div>
+    <input class="search" id="item-search" type="search" placeholder="Filter items…" value="${esc(S.itemQuery)}" aria-label="Filter items">
+  </section>
+  <section class="panel"><div id="items-table"></div></section>`;
+}
+function fillItemsTable() {
+  const agg = {};
+  const g = k => agg[k] ||= { made: 0, used: 0, ship: 0, makers: new Set(), users: new Set() };
+  for (const l of S.lines) {
+    if (!lineCounts(l)) continue;
+    const a = g(l.item); a.made += n0(l.rate); a.makers.add(l.planetId);
+    for (const i of l.inputs || []) { const b = g(i.item); b.used += n0(i.rate); b.users.add(l.planetId); }
+  }
+  for (const r of S.routes) if (routeCounts(r)) g(r.item).ship += n0(r.rate);
+  const short = new Set(allShortages().map(s => s.item));
+  const q = S.itemQuery.trim().toLowerCase();
+  const rows = Object.entries(agg).filter(([k]) => !q || k.toLowerCase().includes(q))
+    .sort((a, b) => (((b[1].made - b[1].used) < -EPS) - ((a[1].made - a[1].used) < -EPS)) || a[0].localeCompare(b[0]));
+  const names = set => [...set].map(pname).sort().join(', ') || '—';
+  $('#items-table').innerHTML = rows.length ? `<div class="tbl-wrap"><table>
+    <thead><tr><th>Item</th><th class="n">Made</th><th class="n">Used</th><th class="n">Net</th><th class="n">Shipped</th><th>Made on</th><th>Used on</th></tr></thead>
+    <tbody>${rows.map(([k, a]) => { const net = a.made - a.used; return `<tr class="${net < -EPS ? 'deficit' : ''}">
+      <td>${itemTag(k)}${short.has(k) && net >= -EPS ? `<div class="flag">Short on a planet</div>` : ''}</td>
+      <td class="n${a.made ? '' : ' z'}">${a.made ? fmt(a.made) : '·'}</td><td class="n${a.used ? '' : ' z'}">${a.used ? fmt(a.used) : '·'}</td>
+      <td class="n ${net < -EPS ? 'net-neg' : net > EPS ? 'net-pos' : 'net-zero'}">${sfmt(net)}</td>
+      <td class="n${a.ship ? '' : ' z'}">${a.ship ? fmt(a.ship) : '·'}</td>
+      <td class="muted">${esc(names(a.makers))}</td><td class="muted">${esc(names(a.users))}</td></tr>`; }).join('')}</tbody>
+  </table></div><p class="hint" style="margin-top:10px">Totals across every planet, per minute. “Short on a planet” means the galaxy makes enough but it isn't reaching where it's used.</p>`
+  : `<p class="empty-note">${q ? 'No items match.' : 'Log some production lines to see galaxy-wide totals.'}</p>`;
+}
+
+/* ---------------- map ---------------- */
+const MAP_HINT = 'Hover a route for details. Click a planet to focus on its imports and exports, or a route to edit it.';
+const routeInfo = r => `${itemTag(r.item)} <span class="num">${fmt(r.rate)}/min</span>
+  <span>${esc(pname(r.fromPlanetId))} <span class="arrow">→</span> ${esc(pname(r.toPlanetId))}</span>
+  <span>· ${esc(r.transport || '')}${r.distance ? ' · ' + fmt(r.distance) + ' ly' : ''}</span>
+  <span class="pill st-${esc(r.status)}">${esc(cap(r.status))}</span>`;
+function ptColor(t) {
+  t = String(t || '').toLowerCase();
+  if (/lava|volcan/.test(t)) return '#e2603a';
+  if (/gas/.test(t)) return '#d9b27c';
+  if (/ice giant/.test(t)) return '#8fd3ef';
+  if (/ice|frozen|tundra|gelisol|scarlet|glaci/.test(t)) return '#cfe6f3';
+  if (/ocean|sakura|swamp|jungle|water/.test(t)) return '#3f8fd6';
+  if (/mediterranean|prairie|savanna|terran|earth/.test(t)) return '#4fb58a';
+  if (/desert|gobi|salt|red stone|barren|ash|crystal|hurricane/.test(t)) return '#c9a46a';
+  return '#8a9fba';
+}
+function mapLayout() {
+  const systems = {};
+  S.planets.forEach(p => (systems[p.system || 'Unassigned system'] ||= []).push(p));
+  const names = Object.keys(systems).sort();
+  const cols = names.length <= 3 ? names.length : Math.ceil(Math.sqrt(names.length * 1.6));
+  const sizes = names.map(n => { const k = systems[n].length; return k === 1 ? 64 : Math.max(96, 40 + k * 26); });
+  const Rmax = Math.max(...sizes);
+  const cellW = Rmax * 2 + 180, cellH = Rmax * 2 + 150;
+  const pos = {}, clusters = [];
+  names.forEach((n, i) => {
+    const cx = (i % cols) * cellW + cellW / 2, cy = Math.floor(i / cols) * cellH + Rmax + 50, R = sizes[i];
+    const ps = systems[n].slice().sort((a, b) => a.name.localeCompare(b.name));
+    clusters.push({ name: n, cx, cy, R });
+    const start = ps.length === 2 ? Math.PI : -Math.PI / 2;
+    ps.forEach((p, j) => {
+      const a = start + j * 2 * Math.PI / ps.length;
+      pos[p.id] = { x: cx + Math.cos(a) * R, y: cy + Math.sin(a) * R, r: /gas|giant/i.test(p.type || '') ? 17 : 13 };
+    });
+  });
+  return { pos, clusters, W: cols * cellW, H: Math.ceil(names.length / cols) * cellH };
+}
+function edgeGeom(a, b, k) {
+  const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
+  const nx = -dy / d, ny = dx / d, off = d * (0.14 + 0.11 * k);
+  const cx = (a.x + b.x) / 2 + nx * off, cy = (a.y + b.y) / 2 + ny * off;
+  const toward = (px, py, r) => { const l = Math.hypot(cx - px, cy - py) || 1; return [px + (cx - px) / l * r, py + (cy - py) / l * r]; };
+  const [sx, sy] = toward(a.x, a.y, a.r + 4);
+  const [tx, ty] = toward(b.x, b.y, b.r + 4);
+  const ux = tx - cx, uy = ty - cy, ul = Math.hypot(ux, uy) || 1, dxu = ux / ul, dyu = uy / ul;
+  const mid = [0.25 * sx + 0.5 * cx + 0.25 * tx, 0.25 * sy + 0.5 * cy + 0.25 * ty];
+  return {
+    path: L => `M${sx.toFixed(1)} ${sy.toFixed(1)} Q${cx.toFixed(1)} ${cy.toFixed(1)} ${(tx - dxu * L * 0.7).toFixed(1)} ${(ty - dyu * L * 0.7).toFixed(1)}`,
+    arrow: w => { const L = 7 + w * 1.4, W = 3.5 + w * 0.8, bx = tx - dxu * L, by = ty - dyu * L;
+      return [[tx, ty], [bx - dyu * W, by + dxu * W], [bx + dyu * W, by - dxu * W]].map(p => p.map(v => v.toFixed(1)).join(',')).join(' '); },
+    arrowLen: w => 7 + w * 1.4,
+    mid
+  };
+}
+function viewMap() {
+  if (!S.planets.length) return `<section class="hero-empty"><span class="eyebrow">Map</span><h1>No planets yet</h1>
+    <p>Add planets and routes and they'll be drawn here.</p><div class="row"><button class="btn primary" data-act="new-planet">Add planet</button></div></section>`;
+  const Lay = mapLayout(), P = Lay.pos;
+  const items = [...new Set(S.routes.map(r => r.item))].sort();
+  if (S.mapItem && !items.includes(S.mapItem)) S.mapItem = '';
+  if (S.mapPlanet && !P[S.mapPlanet]) S.mapPlanet = null;
+  const rs = S.routes.filter(r => P[r.fromPlanetId] && P[r.toPlanetId] && r.fromPlanetId !== r.toPlanetId && (!S.mapItem || r.item === S.mapItem));
+  const maxRate = Math.max(1, ...rs.map(r => n0(r.rate)));
+  const touches = r => !S.mapPlanet || r.fromPlanetId === S.mapPlanet || r.toPlanetId === S.mapPlanet;
+  const linked = new Set();
+  if (S.mapPlanet) { linked.add(S.mapPlanet); rs.forEach(r => { if (touches(r)) { linked.add(r.fromPlanetId); linked.add(r.toPlanetId); } }); }
+  const pairK = {};
+  const edges = rs.slice().sort((a, b) => n0(b.rate) - n0(a.rate) || a.id.localeCompare(b.id)).map(r => {
+    const key = r.fromPlanetId + '>' + r.toPlanetId; const k = pairK[key] = (pairK[key] ?? -1) + 1;
+    const g = edgeGeom(P[r.fromPlanetId], P[r.toPlanetId], k);
+    const w = 1.5 + 4.5 * Math.sqrt(n0(r.rate) / maxRate);
+    const st = ROUTE_STATUS.includes(r.status) ? r.status : 'active';
+    const on = touches(r), d = g.path(g.arrowLen(w));
+    const label = S.mapPlanet && on ? `<text class="elabel" x="${g.mid[0].toFixed(1)}" y="${g.mid[1].toFixed(1)}">${fmt(r.rate)}</text>` : '';
+    return `<g class="edge ${st}${on ? '' : ' dim'}" style="color:${itemColor(r.item)}" data-act="edit-route" data-id="${esc(r.id)}" data-route="${esc(r.id)}" tabindex="0" role="button" aria-label="${esc(`${r.item}, ${fmt(r.rate)} per minute, ${pname(r.fromPlanetId)} to ${pname(r.toPlanetId)}, ${st}`)}">
+      <path class="hit" d="${d}"/><path class="base" d="${d}" stroke="currentColor" stroke-width="${w.toFixed(1)}"/>
+      ${st === 'active' ? `<path class="flow" d="${d}" stroke-width="${Math.max(1.4, w * 0.5).toFixed(1)}"/>` : ''}
+      <polygon points="${g.arrow(w)}" fill="currentColor"/>${label}</g>`;
+  }).join('');
+  const shortSet = new Set(allShortages().map(s => s.planet.id));
+  const nodes = S.planets.map(p => {
+    const q = P[p.id], sel = S.mapPlanet === p.id, dim = S.mapPlanet && !linked.has(p.id);
+    return `<g class="pnode${sel ? ' sel' : ''}${dim ? ' dimp' : ''}" data-act="map-planet" data-id="${esc(p.id)}" tabindex="0" role="button" aria-label="${esc(p.name)}${shortSet.has(p.id) ? ', has shortages' : ''}">
+      <circle class="halo" cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="${q.r + 7}"/>
+      <circle cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="${q.r}" fill="${ptColor(p.type)}"/>
+      <circle cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="${q.r}" fill="url(#shade)"/>
+      ${shortSet.has(p.id) ? `<circle class="ring" cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="${q.r + 3.5}"/>` : ''}
+      <text x="${q.x.toFixed(1)}" y="${(q.y + q.r + 18).toFixed(1)}">${esc(p.name)}</text></g>`;
+  }).join('');
+  const clusters = Lay.clusters.map(c => `<circle class="orbit" cx="${c.cx}" cy="${c.cy}" r="${c.R}"/>
+    <circle cx="${c.cx}" cy="${c.cy}" r="16" fill="#f0a83a" opacity=".12"/><circle cx="${c.cx}" cy="${c.cy}" r="6" fill="#f0a83a"/>
+    <text class="syslabel" x="${c.cx}" y="${c.cy + c.R + 52}">${esc(c.name)}</text>`).join('');
+  const svg = `<svg viewBox="0 0 ${Lay.W} ${Lay.H}" role="img" aria-label="Map of planets and logistics routes">
+    <defs><radialGradient id="shade" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#fff" stop-opacity=".35"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".5"/></radialGradient></defs>
+    <rect class="map-bg" x="0" y="0" width="${Lay.W}" height="${Lay.H}" data-act="map-clear"/>
+    ${clusters}${edges}${nodes}</svg>`;
+
+  let side;
+  if (S.mapPlanet) {
+    const p = planetById(S.mapPlanet);
+    const imp = rs.filter(r => r.toPlanetId === p.id), exp = rs.filter(r => r.fromPlanetId === p.id);
+    const li = (r, dir) => `<button class="frow" data-act="edit-route" data-id="${esc(r.id)}">${itemTag(r.item)}<span class="lrate">${fmt(r.rate)}<small>/min</small></span>
+      <span class="sub">${dir === 'in' ? 'from' : 'to'} ${esc(pname(dir === 'in' ? r.fromPlanetId : r.toPlanetId))}${r.status !== 'active' ? ` <span class="pill st-${esc(r.status)}">${esc(cap(r.status))}</span>` : ''}</span></button>`;
+    side = `<div><span class="eyebrow">${esc(p.system || 'Unassigned system')}</span><h3>${esc(p.name)}</h3></div>
+      <div><h2>Imports</h2>${imp.length ? imp.map(r => li(r, 'in')).join('') : '<p class="empty-note">None</p>'}</div>
+      <div><h2>Exports</h2>${exp.length ? exp.map(r => li(r, 'out')).join('') : '<p class="empty-note">None</p>'}</div>
+      <div class="row"><button class="btn primary" data-act="open-planet" data-id="${esc(p.id)}">Open planet</button><button class="btn ghost" data-act="map-clear">Show all</button></div>`;
+  } else {
+    side = `<h2>Key</h2><div class="legend">
+      <div><svg width="44" height="12"><line x1="2" y1="6" x2="42" y2="6" stroke="#52c4ea" stroke-width="2"/></svg>Thin line: low rate</div>
+      <div><svg width="44" height="12"><line x1="2" y1="6" x2="42" y2="6" stroke="#52c4ea" stroke-width="6" stroke-linecap="round"/></svg>Thick line: high rate</div>
+      <div><svg width="44" height="12"><line x1="2" y1="6" x2="42" y2="6" stroke="#52c4ea" stroke-width="3" stroke-linecap="round"/><line x1="2" y1="6" x2="42" y2="6" stroke="#fff" stroke-opacity=".75" stroke-width="1.6" stroke-dasharray="1.5 7" stroke-linecap="round"/></svg>Moving dots: active</div>
+      <div><svg width="44" height="12"><line x1="2" y1="6" x2="42" y2="6" stroke="#52c4ea" stroke-opacity=".6" stroke-width="3" stroke-dasharray="7 6"/></svg>Dashed: planned</div>
+      <div><svg width="44" height="12"><line x1="2" y1="6" x2="42" y2="6" stroke="#8a9fba" stroke-opacity=".5" stroke-width="2" stroke-dasharray="2 5"/></svg>Dotted grey: paused</div>
+      <div><svg width="44" height="24"><circle cx="22" cy="12" r="7" fill="#4fb58a"/><circle cx="22" cy="12" r="10.5" fill="none" stroke="#ff6f5c" stroke-width="2" stroke-dasharray="4 3"/></svg>Red ring: planet has a shortage</div>
+      <p class="hint">Line colour matches the item, planet colour matches its type, and arrows point the way cargo travels.</p></div>`;
+  }
+  const total = rs.filter(routeCounts).reduce((s, r) => s + n0(r.rate), 0);
+  return `${exampleBanner()}
+  <section class="spread">
+    <div><span class="eyebrow">Logistics</span><h1>Route map</h1></div>
+    <div class="row"><label class="lbl" for="map-item">Item</label>
+      <select class="map-select" id="map-item"><option value="">All items</option>${items.map(i => `<option${i === S.mapItem ? ' selected' : ''}>${esc(i)}</option>`).join('')}</select>
+      <button class="btn primary" data-act="new-route" ${S.planets.length < 2 ? 'disabled' : ''}>+ Route</button></div>
+  </section>
+  <div class="map-layout">
+    <div class="map-panel">
+      <div class="map-info" id="map-info">${MAP_HINT}</div>
+      <div class="map-scroll">${svg}</div>
+      <p class="hint" style="padding:10px 14px;border-top:1px solid var(--rim)">${rs.length} route${rs.length === 1 ? '' : 's'} shown · <span class="num">${fmt(total)}</span> items/min moving${S.showPlanned ? ' incl. planned' : ''}</p>
+    </div>
+    <aside class="panel side">${side}</aside>
+  </div>`;
+}
+
+/* ---------------- dialogs ---------------- */
+const dlg = $('#dlg');
+function openDialog(html, onSubmit) {
+  dlg.innerHTML = html;
+  const form = dlg.querySelector('form');
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const err = form.querySelector('.ferr'); err.textContent = '';
+    const btn = form.querySelector('[type=submit]'); btn.disabled = true;
+    try { const msg = await onSubmit(form); if (msg) { err.textContent = msg; btn.disabled = false; return; } dlg.close(); }
+    catch (ex) { err.textContent = errMsg(ex); btn.disabled = false; }
+  });
+  dlg.showModal();
+  const first = form.querySelector('input:not([type=hidden]), select'); first && first.focus();
+}
+dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+
+const planetOptions = sel => S.planets.slice().sort((a, b) => (a.system || '').localeCompare(b.system || '') || a.name.localeCompare(b.name))
+  .map(p => `<option value="${esc(p.id)}"${p.id === sel ? ' selected' : ''}>${esc(p.name)}${p.system ? ' — ' + esc(p.system) : ''}</option>`).join('');
+const dlgShell = (title, body, isEdit, delLabel) => `<form class="dlg" novalidate>
+  <div class="dlg-head"><h3>${esc(title)}</h3><button type="button" class="btn ghost" data-act="close-dlg" aria-label="Close">✕</button></div>
+  <div class="dlg-body">${body}<p class="ferr" role="alert"></p></div>
+  <div class="dlg-foot">${isEdit ? `<button type="button" class="btn danger" data-act="delete-current">${esc(delLabel)}</button>` : ''}<span class="grow"></span>
+    <button type="button" class="btn ghost" data-act="close-dlg">Cancel</button><button type="submit" class="btn primary">${isEdit ? 'Save' : 'Add'}</button></div>
+</form>`;
+let pendingDelete = null;
+
+function planetDialog(p, presetSystem) {
+  const isEdit = !!p; p = p || { name: '', system: presetSystem || '', type: '', notes: '' };
+  pendingDelete = isEdit ? async () => {
+    for (const l of S.lines.filter(l => l.planetId === p.id)) await remove('lines', l.id);
+    for (const r of S.routes.filter(r => r.fromPlanetId === p.id || r.toPlanetId === p.id)) await remove('routes', r.id);
+    await remove('planets', p.id);
+    if (S.planetId === p.id) { S.view = 'galaxy'; }
+  } : null;
+  const nl = isEdit ? S.lines.filter(l => l.planetId === p.id).length : 0;
+  const nr = isEdit ? S.routes.filter(r => r.fromPlanetId === p.id || r.toPlanetId === p.id).length : 0;
+  openDialog(dlgShell(isEdit ? 'Edit planet' : 'Add planet', `
+    <div class="field"><label for="pf-name">Planet name</label><input id="pf-name" value="${esc(p.name)}" placeholder="e.g. Vela Ito II" required></div>
+    <div class="fgrid">
+      <div class="field"><label for="pf-system">Star system</label><input id="pf-system" list="systemlist" value="${esc(p.system)}" placeholder="e.g. Vela Ito"></div>
+      <div class="field"><label for="pf-type">Planet type</label><input id="pf-type" list="typelist" value="${esc(p.type)}" placeholder="e.g. Lava"></div>
+    </div>
+    <div class="field"><label for="pf-notes">Notes</label><textarea id="pf-notes" placeholder="Veins, rare resources, what it's for…">${esc(p.notes)}</textarea></div>
+    ${isEdit && (nl || nr) ? `<p class="hint">Deleting this planet also deletes its ${nl} line${nl === 1 ? '' : 's'} and ${nr} route${nr === 1 ? '' : 's'}.</p>` : ''}
+  `, isEdit, 'Delete planet'), async f => {
+    const name = f.querySelector('#pf-name').value.trim();
+    if (!name) return 'Give the planet a name.';
+    const obj = { ...p, id: p.id || uid('p'), name, system: f.querySelector('#pf-system').value.trim(), type: f.querySelector('#pf-type').value.trim(), notes: f.querySelector('#pf-notes').value.trim() };
+    delete obj.example;
+    await put('planets', obj);
+    if (!isEdit) { S.view = 'planet'; S.planetId = obj.id; render(); }
+  });
+}
+
+function inRow(i, it) {
+  return `<div class="inrow"><input id="lf-in-item-${i}" list="itemlist" placeholder="Input item" value="${esc(it?.item || '')}" aria-label="Input item">
+    <input id="lf-in-rate-${i}" type="number" min="0" step="any" placeholder="/min" value="${it?.rate ?? ''}" aria-label="Input rate per minute">
+    <button type="button" class="x" data-act="rm-input" aria-label="Remove input">✕</button></div>`;
+}
+let inSeq = 0;
+function lineDialog(l, planetId) {
+  const isEdit = !!l; l = l || { planetId, item: '', rate: '', building: '', count: '', status: 'running', inputs: [], notes: '' };
+  pendingDelete = isEdit ? () => remove('lines', l.id) : null;
+  inSeq = 0;
+  const rows = (l.inputs?.length ? l.inputs : [null]).map(it => inRow(inSeq++, it)).join('');
+  openDialog(dlgShell(isEdit ? 'Edit production line' : 'Add production line', `
+    <div class="field"><label for="lf-planet">Planet</label><select id="lf-planet">${planetOptions(l.planetId)}</select></div>
+    <div class="fgrid">
+      <div class="field"><label for="lf-item">Output item</label><input id="lf-item" list="itemlist" value="${esc(l.item)}" placeholder="e.g. Magnetic Coil" required></div>
+      <div class="field"><label for="lf-rate">Output per minute</label><input id="lf-rate" type="number" min="0" step="any" value="${esc(l.rate)}" placeholder="120"></div>
+      <div class="field"><label for="lf-building">Building</label><input id="lf-building" list="buildinglist" value="${esc(l.building || '')}" placeholder="e.g. Assembling Machine Mk.II"></div>
+      <div class="field"><label for="lf-count">How many</label><input id="lf-count" type="number" min="0" step="1" value="${esc(l.count ?? '')}" placeholder="optional"></div>
+    </div>
+    <div class="field"><label for="lf-status">Status</label><select id="lf-status">${LINE_STATUS.map(s => `<option value="${s}"${s === l.status ? ' selected' : ''}>${cap(s)}</option>`).join('')}</select></div>
+    <div class="field"><span class="lbl">Inputs consumed (per minute)</span>
+      <div class="inrows" id="lf-inputs">${rows}</div>
+      <div><button type="button" class="btn ghost" data-act="add-input">+ Input</button></div>
+      <p class="hint">Leave inputs empty for miners, pumps and orbital collectors.</p></div>
+    <div class="field"><label for="lf-notes">Notes</label><input id="lf-notes" value="${esc(l.notes || '')}" placeholder="e.g. proliferated, needs more power"></div>
+  `, isEdit, 'Delete line'), async f => {
+    const item = canon(f.querySelector('#lf-item').value);
+    if (!item) return 'Enter the item this line makes.';
+    const rate = n0(f.querySelector('#lf-rate').value);
+    if (rate < 0) return 'Rate cannot be negative.';
+    const inputs = [...f.querySelectorAll('.inrow')].map(r => ({ item: canon(r.querySelector('input[list]').value), rate: n0(r.querySelector('input[type=number]').value) })).filter(i => i.item);
+    const cnt = f.querySelector('#lf-count').value;
+    const obj = { ...l, id: l.id || uid('l'), planetId: f.querySelector('#lf-planet').value, item, rate, building: f.querySelector('#lf-building').value.trim(), count: cnt === '' ? null : n0(cnt), status: f.querySelector('#lf-status').value, inputs, notes: f.querySelector('#lf-notes').value.trim() };
+    delete obj.example;
+    await put('lines', obj);
+  });
+}
+
+function routeDialog(r, preset = {}) {
+  const isEdit = !!r;
+  r = r || { item: '', fromPlanetId: preset.from || '', toPlanetId: preset.to || '', rate: '', transport: 'ILS', distance: null, status: 'active', notes: '' };
+  pendingDelete = isEdit ? () => remove('routes', r.id) : null;
+  if (!r.fromPlanetId) r.fromPlanetId = S.planets.find(p => p.id !== r.toPlanetId)?.id || '';
+  if (!r.toPlanetId) r.toPlanetId = S.planets.find(p => p.id !== r.fromPlanetId)?.id || '';
+  openDialog(dlgShell(isEdit ? 'Edit route' : 'Add route', `
+    <div class="fgrid">
+      <div class="field"><label for="rf-item">Item</label><input id="rf-item" list="itemlist" value="${esc(r.item)}" placeholder="e.g. Titanium Ingot" required></div>
+      <div class="field"><label for="rf-rate">Items per minute</label><input id="rf-rate" type="number" min="0" step="any" value="${esc(r.rate)}" placeholder="240"></div>
+      <div class="field"><label for="rf-from">From</label><select id="rf-from">${planetOptions(r.fromPlanetId)}</select></div>
+      <div class="field"><label for="rf-to">To</label><select id="rf-to">${planetOptions(r.toPlanetId)}</select></div>
+      <div class="field"><label for="rf-transport">Transport</label><select id="rf-transport">${TRANSPORT.map(t => `<option${t === r.transport ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></div>
+      <div class="field"><label for="rf-dist">Distance (ly)</label><input id="rf-dist" type="number" min="0" step="any" value="${esc(r.distance ?? '')}" placeholder="blank if same system"></div>
+    </div>
+    <div class="field"><label for="rf-status">Status</label><select id="rf-status">${ROUTE_STATUS.map(s => `<option value="${s}"${s === r.status ? ' selected' : ''}>${cap(s)}</option>`).join('')}</select></div>
+    <div class="field"><label for="rf-notes">Notes</label><input id="rf-notes" value="${esc(r.notes || '')}" placeholder="e.g. 10 vessels, min load 20%"></div>
+  `, isEdit, 'Delete route'), async f => {
+    const item = canon(f.querySelector('#rf-item').value);
+    if (!item) return 'Enter the item being shipped.';
+    const from = f.querySelector('#rf-from').value, to = f.querySelector('#rf-to').value;
+    if (!from || !to) return 'Pick both planets.';
+    if (from === to) return 'Pick a different destination planet.';
+    const d = f.querySelector('#rf-dist').value;
+    const obj = { ...r, id: r.id || uid('r'), item, rate: n0(f.querySelector('#rf-rate').value), fromPlanetId: from, toPlanetId: to, transport: f.querySelector('#rf-transport').value, distance: d === '' ? null : n0(d), status: f.querySelector('#rf-status').value, notes: f.querySelector('#rf-notes').value.trim() };
+    delete obj.example;
+    await put('routes', obj);
+  });
+}
+
+/* ---------------- events ---------------- */
+let clearArmed = false;
+document.addEventListener('click', async e => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const act = el.dataset.act, id = el.dataset.id;
+  switch (act) {
+    case 'tab': S.view = el.dataset.view; try { history.replaceState(null, '', '#' + S.view); } catch {} render(); window.scrollTo(0, 0); break;
+    case 'open-planet': S.view = 'planet'; S.planetId = id; render(); window.scrollTo(0, 0); break;
+    case 'new-planet': planetDialog(null, el.dataset.system); break;
+    case 'edit-planet': planetDialog(planetById(id)); break;
+    case 'new-line': if (!S.planets.length) return toast('Add a planet first.'); lineDialog(null, el.dataset.planet || S.planetId || S.planets[0].id); break;
+    case 'edit-line': lineDialog(S.lines.find(x => x.id === id)); break;
+    case 'new-route': if (S.planets.length < 2) return toast('Add at least two planets before creating a route.'); routeDialog(null, { from: el.dataset.from, to: el.dataset.to }); break;
+    case 'edit-route': routeDialog(S.routes.find(x => x.id === id)); break;
+    case 'route-filter': S.routeFilter = el.dataset.f; render(); break;
+    case 'export': {
+      const blob = new Blob([JSON.stringify(snapshot(), null, 2)], { type: 'application/json' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = 'dsp-ledger-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      break;
+    }
+    case 'quit':
+      if (!el.dataset.armed) { el.dataset.armed = '1'; el.textContent = 'Click to quit'; setTimeout(() => { delete el.dataset.armed; el.textContent = 'Quit'; }, 4000); return; }
+      await saveChain;
+      try { await fetch('api/quit', { method: 'POST', headers: { 'X-DSP-Ledger': '1' } }); } catch {}
+      S.mode = 'stopped'; setSync(); $('#filectl').hidden = true;
+      $('#main').innerHTML = `<section class="hero-empty"><span class="eyebrow">Stopped</span><h1>DSP Ledger has closed</h1>
+        <p>Everything is saved. You can close this tab. Run DSP Ledger again to reopen it.</p></section>`;
+      break;
+    case 'map-planet': S.mapPlanet = S.mapPlanet === id ? null : id; render(); break;
+    case 'map-clear': if (S.mapPlanet) { S.mapPlanet = null; render(); } break;
+    case 'close-dlg': dlg.close(); break;
+    case 'add-input': { const box = dlg.querySelector('#lf-inputs'); box.insertAdjacentHTML('beforeend', inRow(inSeq++)); box.lastElementChild.querySelector('input').focus(); break; }
+    case 'rm-input': el.closest('.inrow').remove(); break;
+    case 'delete-current':
+      if (!el.dataset.armed) { el.dataset.armed = '1'; el.textContent = 'Click again to delete'; return; }
+      el.disabled = true;
+      try { await pendingDelete?.(); dlg.close(); render(); } catch (ex) { toast(errMsg(ex)); el.disabled = false; }
+      break;
+    case 'clear-examples':
+      if (!clearArmed) { clearArmed = true; el.textContent = 'Click again to clear'; el.setAttribute('data-armed', '1'); return; }
+      clearArmed = false; el.disabled = true;
+      try {
+        for (const c of ['lines', 'routes', 'planets']) for (const x of S[c].filter(x => x.example)) await remove(c, x.id);
+      } catch (ex) { toast(errMsg(ex)); }
+      render(); break;
+    case 'load-examples':
+      el.disabled = true;
+      try {
+        for (const c of ['planets', 'lines', 'routes']) for (const x of EXAMPLE[c]) await put(c, { ...x, example: true });
+      } catch (ex) { toast(errMsg(ex)); el.disabled = false; }
+      break;
+  }
+});
+document.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('tr[data-act], g[data-act]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
+});
+document.addEventListener('input', e => {
+  if (e.target.id === 'item-search') { S.itemQuery = e.target.value; fillItemsTable(); }
+});
+document.addEventListener('change', async e => {
+  if (e.target.id === 'map-item') { S.mapItem = e.target.value; render(); }
+  if (e.target.id === 'import-file') {
+    const f = e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    try {
+      const d = JSON.parse(await f.text());
+      const counts = {};
+      for (const c of ['planets', 'lines', 'routes']) {
+        if (d[c] !== undefined && !Array.isArray(d[c])) throw new Error('bad ' + c);
+        counts[c] = 0;
+        for (const x of d[c] || []) {
+          if (!x || typeof x !== 'object' || !x.id) continue;
+          const i = S[c].findIndex(y => y.id === x.id);
+          if (i >= 0) S[c][i] = x; else S[c].push(x);
+          counts[c]++;
+        }
+      }
+      persist(); render();
+      toast(`Imported ${counts.planets} planets, ${counts.lines} lines and ${counts.routes} routes.`, true);
+    } catch { toast("That file isn't a DSP Ledger backup. Choose a .json file made with Export."); }
+  }
+});
+let lastHover = null;
+document.addEventListener('mouseover', e => {
+  const info = document.getElementById('map-info'); if (!info) return;
+  const g = e.target.closest ? e.target.closest('[data-route]') : null;
+  const key = g ? g.dataset.route : null;
+  if (key === lastHover) return; lastHover = key;
+  const r = key && S.routes.find(x => x.id === key);
+  info.innerHTML = r ? routeInfo(r) : MAP_HINT;
+});
+document.addEventListener('focusin', e => {
+  const info = document.getElementById('map-info'); if (!info) return;
+  const g = e.target.closest ? e.target.closest('[data-route]') : null;
+  const r = g && S.routes.find(x => x.id === g.dataset.route);
+  if (r) { lastHover = r.id; info.innerHTML = routeInfo(r); }
+});
+$('#tg-planned').addEventListener('change', e => { S.showPlanned = e.target.checked; savePrefs(); render(); });
+
+const h = (location.hash || '').slice(1);
+if (['galaxy', 'map', 'routes', 'items'].includes(h)) S.view = h;
+render();
+init();
+})();
+</script>
+
+</body>
+</html>

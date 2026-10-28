@@ -1,0 +1,345 @@
+{
+  "version": 1,
+  "planets": [
+    {
+      "id": "p_1nxpp2q665",
+      "name": "Kerb 3",
+      "notes": "",
+      "system": "Kerb",
+      "type": ""
+    },
+    {
+      "id": "p_4mw7g8mfs4",
+      "name": "Gienah 2",
+      "notes": "",
+      "system": "Gienah",
+      "type": ""
+    },
+    {
+      "id": "p_6j5uhc1usj",
+      "name": "Nihal 3",
+      "notes": "Main importer/advanced system production",
+      "system": "Nihal",
+      "type": "Earth-like"
+    },
+    {
+      "id": "p_a1g10gxcjs",
+      "name": "Nihal 2",
+      "notes": "",
+      "system": "Nihal",
+      "type": "Gas Giant"
+    },
+    {
+      "id": "p_fw4d7l73xj",
+      "name": "Mizar 1",
+      "notes": "",
+      "system": "Mizar",
+      "type": ""
+    },
+    {
+      "id": "p_jdp6uiqv9s",
+      "name": "Nihal 1",
+      "notes": "",
+      "system": "Nihal",
+      "type": "Lava"
+    },
+    {
+      "id": "p_uqs3hb64gd",
+      "name": "Chertan 1",
+      "notes": "",
+      "system": "Chertan",
+      "type": ""
+    },
+    {
+      "id": "p_vjuug3qm1z",
+      "name": "DenebDulfmin 1",
+      "notes": "",
+      "system": "DenebDulfmin",
+      "type": ""
+    },
+    {
+      "id": "p_wjwr4a1gtu",
+      "name": "Nihal 4",
+      "notes": "",
+      "system": "Nihal",
+      "type": "Glacieon"
+    }
+  ],
+  "lines": [
+    {
+      "id": "l_42tu80828v",
+      "building": "",
+      "count": null,
+      "inputs": [],
+      "item": "Microcrystalline Component",
+      "notes": "",
+      "planetId": "p_uqs3hb64gd",
+      "rate": 86,
+      "status": "running"
+    },
+    {
+      "id": "l_47l6hzzbtr",
+      "building": "",
+      "count": null,
+      "inputs": [],
+      "item": "Iron Ingot",
+      "notes": "",
+      "planetId": "p_jdp6uiqv9s",
+      "rate": 1140,
+      "status": "running"
+    },
+    {
+      "id": "l_7n8ndieujx",
+      "building": "",
+      "count": null,
+      "inputs": [
+        {
+          "item": "Steel",
+          "rate": 110
+        },
+        {
+          "item": "Sulfuric Acid",
+          "rate": 215
+        }
+      ],
+      "item": "Titanium Alloy",
+      "notes": "",
+      "planetId": "p_4mw7g8mfs4",
+      "rate": 112,
+      "status": "running"
+    },
+    {
+      "id": "l_7tabojiblx",
+      "building": "",
+      "count": null,
+      "inputs": [],
+      "item": "Steel",
+      "notes": "",
+      "planetId": "p_4mw7g8mfs4",
+      "rate": 152,
+      "status": "running"
+    },
+    {
+      "id": "l_8516s1izqa",
+      "building": "",
+      "count": null,
+      "inputs": [],
+      "item": "Titanium Ingot",
+      "notes": "",
+      "planetId": "p_4mw7g8mfs4",
+      "rate": 138,
+      "status": "running"
+    },
+    {
+      "id": "l_cfqhphyzk9",
+      "building": "",
+      "count": null,
+      "inputs": [],
+      "item": "Sulfuric Acid",
+      "notes": "",
+      "planetId": "p_fw4d7l73xj",
+      "rate": 764,
+      "status": "running"
+    },
+    {
+      "id": "l_j36hpzgf4y",
+      "building": "",
+      "count": null,
+      "inputs": [],
+      "item": "Titanium Alloy",
+      "notes": "",
+      "planetId": "p_fw4d7l73xj",
+      "rate": 112,
+      "status": "running"
+    },
+    {
+      "id": "l_jxtami8uvz",
+      "building": "",
+      "count": null,
+      "inputs": [],
+      "item": "Titanium Glass",
+      "notes": "",
+      "planetId": "p_wjwr4a1gtu",
+      "rate": 104,
+      "status": "running"
+    },
+    {
+      "id": "l_zewl59bqcs",
+      "building": "",
+      "count": null,
+      "inputs": [],
+      "item": "Titanium Ingot",
+      "notes": "",
+      "planetId": "p_wjwr4a1gtu",
+      "rate": 670,
+      "status": "running"
+    }
+  ],
+  "routes": [
+    {
+      "id": "r_2kcqgmqzle",
+      "distance": null,
+      "fromPlanetId": "p_1nxpp2q665",
+      "item": "Organic Crystal",
+      "notes": "",
+      "rate": 0,
+      "status": "active",
+      "toPlanetId": "p_6j5uhc1usj",
+      "transport": "ILS"
+    },
+    {
+      "id": "r_3podxqyqvh",
+      "distance": null,
+      "fromPlanetId": "p_vjuug3qm1z",
+      "item": "High-Purity Silicon",
+      "notes": "",
+      "rate": 0,
+      "status": "active",
+      "toPlanetId": "p_jdp6uiqv9s",
+      "transport": "ILS"
+    },
+    {
+      "id": "r_60nt6gb6co",
+      "distance": null,
+      "fromPlanetId": "p_uqs3hb64gd",
+      "item": "Microcrystalline Component",
+      "notes": "",
+      "rate": 0,
+      "status": "active",
+      "toPlanetId": "p_jdp6uiqv9s",
+      "transport": "ILS"
+    },
+    {
+      "id": "r_aqcyj3k3m1",
+      "distance": null,
+      "fromPlanetId": "p_vjuug3qm1z",
+      "item": "High-Purity Silicon",
+      "notes": "",
+      "rate": 0,
+      "status": "active",
+      "toPlanetId": "p_6j5uhc1usj",
+      "transport": "ILS"
+    },
+    {
+      "id": "r_g457brqyhh",
+      "distance": null,
+      "fromPlanetId": "p_fw4d7l73xj",
+      "item": "Sulfuric Acid",
+      "notes": "",
+      "rate": 220,
+      "status": "active",
+      "toPlanetId": "p_4mw7g8mfs4",
+      "transport": "ILS + warpers"
+    },
+    {
+      "id": "r_gsah5jc99y",
+      "distance": null,
+      "fromPlanetId": "p_1nxpp2q665",
+      "item": "Carbon Nanotube",
+      "notes": "",
+      "rate": 0,
+      "status": "active",
+      "toPlanetId": "p_6j5uhc1usj",
+      "transport": "ILS"
+    },
+    {
+      "id": "r_jni4rffega",
+      "distance": null,
+      "fromPlanetId": "p_6j5uhc1usj",
+      "item": "Solar Sail",
+      "notes": "",
+      "rate": 0,
+      "status": "active",
+      "toPlanetId": "p_1nxpp2q665",
+      "transport": "ILS"
+    },
+    {
+      "id": "r_jnpdggmzec",
+      "distance": null,
+      "fromPlanetId": "p_fw4d7l73xj",
+      "item": "Titanium Alloy",
+      "notes": "",
+      "rate": 0,
+      "status": "active",
+      "toPlanetId": "p_6j5uhc1usj",
+      "transport": "ILS"
+    },
+    {
+      "id": "r_ks6jx3c6xo",
+      "distance": null,
+      "fromPlanetId": "p_jdp6uiqv9s",
+      "item": "Titanium Ingot",
+      "notes": "",
+      "rate": 0,
+      "status": "active",
+      "toPlanetId": "p_6j5uhc1usj",
+      "transport": "ILS"
+    },
+    {
+      "id": "r_lt5jqnm1kv",
+      "distance": null,
+      "fromPlanetId": "p_jdp6uiqv9s",
+      "item": "Processor",
+      "notes": "",
+      "rate": 0,
+      "status": "active",
+      "toPlanetId": "p_6j5uhc1usj",
+      "transport": "ILS"
+    },
+    {
+      "id": "r_qljtmcxfsc",
+      "distance": null,
+      "fromPlanetId": "p_4mw7g8mfs4",
+      "item": "Glass",
+      "notes": "",
+      "rate": 0,
+      "status": "active",
+      "toPlanetId": "p_a1g10gxcjs",
+      "transport": "ILS"
+    },
+    {
+      "id": "r_uqgozqku1l",
+      "distance": null,
+      "fromPlanetId": "p_fw4d7l73xj",
+      "item": "Sulfuric Acid",
+      "notes": "",
+      "rate": 0,
+      "status": "active",
+      "toPlanetId": "p_6j5uhc1usj",
+      "transport": "ILS"
+    },
+    {
+      "id": "r_v8113ynjb4",
+      "distance": null,
+      "fromPlanetId": "p_jdp6uiqv9s",
+      "item": "Iron Ingot",
+      "notes": "",
+      "rate": 0,
+      "status": "active",
+      "toPlanetId": "p_6j5uhc1usj",
+      "transport": "ILS"
+    },
+    {
+      "id": "r_wjkeqnqsxs",
+      "distance": null,
+      "fromPlanetId": "p_jdp6uiqv9s",
+      "item": "Magnetic Coil",
+      "notes": "",
+      "rate": 0,
+      "status": "active",
+      "toPlanetId": "p_6j5uhc1usj",
+      "transport": "ILS"
+    },
+    {
+      "id": "r_xd6gha63yf",
+      "distance": null,
+      "fromPlanetId": "p_4mw7g8mfs4",
+      "item": "Frame Material",
+      "notes": "",
+      "rate": 0,
+      "status": "active",
+      "toPlanetId": "p_jdp6uiqv9s",
+      "transport": "ILS + warpers"
+    }
+  ]
+}
