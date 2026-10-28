@@ -7,8 +7,6 @@ where you have spare, and how items move across your cluster.
 It runs as its own app, with its own window, icon and taskbar entry. It works offline and
 keeps everything in one JSON file next to the program.
 
-![icon](DSP-Ledger/assets/icon.png)
-
 ## Features
 
 - **Galaxy view.** Planets grouped by star system, with top outputs, import/export counts
